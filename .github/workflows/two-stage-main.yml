@@ -44,11 +44,12 @@ jobs:
 
       # Step 2: add ninja on top and push the final tagged images.
       # Both steps use docker/build-push-action (buildx), so no context mismatch.
+      # context "." = root of the checked-out repo where Dockerfile.vllm-qwen35 lives.
       - name: Add ninja and push final image
         uses: docker/build-push-action@v6
         with:
-          context: .github/docker
-          file: .github/docker/Dockerfile.vllm-qwen35
+          context: .
+          file: Dockerfile.vllm-qwen35
           build-args: BASE_IMAGE=${{ secrets.DOCKERHUB_USERNAME }}/worker-vllm-qwen35:base-${{ github.run_id }}
           push: true
           tags: |

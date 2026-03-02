@@ -1,0 +1,10 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+
+# FlashInfer JIT-compiles the GDN (linear attention) kernel for Qwen3.5 on sm90 (H100).
+# It calls ninja via subprocess — install both pip wrapper (adds ninja to PATH inside
+# Python's bin dir) and the system package for belt-and-suspenders coverage.
+RUN pip install --no-cache-dir ninja \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends ninja-build \
+ && rm -rf /var/lib/apt/lists/*

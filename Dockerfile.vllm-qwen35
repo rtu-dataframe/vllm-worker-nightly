@@ -2,28 +2,9 @@ ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
 
 # ---------------------------------------------------------------------------
-# FlashInfer GDN kernel compilation for Qwen3.5 on H100 (sm90a)
+# Pin vLLM to stable 0.17.0 (Qwen3.5 support: GDN, reasoning parser, FP8)
 # ---------------------------------------------------------------------------
-# Strategy:
-#   1. Install pre-compiled cubin + jit-cache packages (covers most kernels)
-#   2. Install CUDA compiler + ninja for any residual JIT at runtime
-#   3. Set safe defaults: MAX_JOBS=2 to avoid OOM if JIT is triggered
-# ---------------------------------------------------------------------------
-
-# Pre-compiled FlashInfer kernel binaries — eliminates most JIT at runtime
-ARG FLASHINFER_VERSION=0.6.4
+ARG VLLM_VERSION=0.17.0
 RUN pip install --no-cache-dir \
-        flashinfer-cubin==${FLASHINFER_VERSION} \
-        flashinfer-jit-cache==${FLASHINFER_VERSION} \
-        --extra-index-url https://flashinfer.ai/whl/cu129
-
-# CUDA compiler + ninja for any kernels not covered by cubin/jit-cache
-# (e.g. new GDN prefill kernels may still need JIT on first request)
-RUN apt-get update \
- && apt-get install -y --no-install-recommends \
-        cuda-nvcc-12-9 \
-        cuda-cudart-dev-12-9 \
-        ninja-build \
- && pip install --no-cache-dir ninja \
- && rm -rf /var/lib/apt/lists/*
-
+        "vllm[flashinfer]==${VLLM_VERSION}" \
+        --extra-index-url https://download.pytorch.org/whl/cu129

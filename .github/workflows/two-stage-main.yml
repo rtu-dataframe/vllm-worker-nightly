@@ -1,7 +1,7 @@
-name: Build vLLM Worker (Qwen3.5)
+name: Build vLLM Worker (Qwen3.5-27B)
 
 on:
-  workflow_dispatch:  # avvia manualmente da GitHub → Actions → Run workflow
+  workflow_dispatch:
 
 jobs:
   build:
@@ -30,11 +30,8 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # Step 1: build worker-vllm with nightly vLLM and push as a temporary base tag.
-      # We PUSH (not just load) so that step 2 can pull it as a regular registry image —
-      # this avoids the buildx-vs-docker-daemon context mismatch that would occur if we
-      # only used `load: true` here and then ran `docker build` in a `run:` step.
-      - name: Build and push base worker-vllm (nightly)
+      # Step 1: build base worker-vllm with nightly (gets PyTorch 2.10 + deps)
+      - name: Build and push base worker-vllm
         uses: docker/build-push-action@v6
         with:
           context: "https://github.com/runpod-workers/worker-vllm.git"
@@ -42,16 +39,16 @@ jobs:
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/worker-vllm-qwen35:base-${{ github.run_id }}
 
-      # Step 2: add ninja on top and push the final tagged images.
-      # Both steps use docker/build-push-action (buildx), so no context mismatch.
-      # context "." = root of the checked-out repo where Dockerfile.vllm-qwen35 lives.
-      - name: Add ninja and push final image
+      # Step 2: pin vLLM 0.17.0 on top
+      - name: Pin vLLM 0.17.0 and push final image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: Dockerfile.vllm-qwen35
-          build-args: BASE_IMAGE=${{ secrets.DOCKERHUB_USERNAME }}/worker-vllm-qwen35:base-${{ github.run_id }}
+          build-args: |
+            BASE_IMAGE=${{ secrets.DOCKERHUB_USERNAME }}/worker-vllm-qwen35:base-${{ github.run_id }}
+            VLLM_VERSION=0.17.0
           push: true
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/worker-vllm-qwen35:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/worker-vllm-qwen35:nightly-${{ github.run_id }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/worker-vllm-qwen35:v0.17.0-${{ github.run_id }}

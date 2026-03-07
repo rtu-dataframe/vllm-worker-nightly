@@ -9,17 +9,11 @@ RUN pip install --no-cache-dir \
         "vllm[flashinfer]==${VLLM_VERSION}" \
         --extra-index-url https://download.pytorch.org/whl/cu129
 
-# Debug: verify vLLM version and language_model_only support
-RUN python3 -c "import vllm; print(f'vLLM version: {vllm.__version__}'); \
-    from vllm.engine.arg_utils import AsyncEngineArgs; \
-    fields = AsyncEngineArgs.__dataclass_fields__; \
-    print(f'language_model_only field exists: {\"language_model_only\" in fields}'); \
-    print(f'Total fields: {len(fields)}')"
-
-# Patch: inject runtime debug to log effective engine args before vLLM starts
-RUN python3 -c "\
-import pathlib, re; \
-ea = pathlib.Path('/usr/local/lib/python3.10/dist-packages/runpod_wrapper/engine_args.py'); \
-alt = list(pathlib.Path('/usr/local/lib/python3.10/dist-packages').rglob('engine_args.py')); \
-print('engine_args.py locations:', [str(p) for p in alt]); \
-"
+# ---------------------------------------------------------------------------
+# Install CUDA compiler (nvcc) — required by FlashInfer to JIT-compile
+# GDN (Gated Delta Network) kernels for Qwen3.5 at first startup.
+# The base worker-vllm image is runtime-only and does not include nvcc.
+# ---------------------------------------------------------------------------
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends cuda-nvcc-12-9 && \
+    rm -rf /var/lib/apt/lists/*

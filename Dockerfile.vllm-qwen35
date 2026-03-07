@@ -15,3 +15,11 @@ RUN python3 -c "import vllm; print(f'vLLM version: {vllm.__version__}'); \
     fields = AsyncEngineArgs.__dataclass_fields__; \
     print(f'language_model_only field exists: {\"language_model_only\" in fields}'); \
     print(f'Total fields: {len(fields)}')"
+
+# Patch: inject runtime debug to log effective engine args before vLLM starts
+RUN python3 -c "\
+import pathlib, re; \
+ea = pathlib.Path('/usr/local/lib/python3.10/dist-packages/runpod_wrapper/engine_args.py'); \
+alt = list(pathlib.Path('/usr/local/lib/python3.10/dist-packages').rglob('engine_args.py')); \
+print('engine_args.py locations:', [str(p) for p in alt]); \
+"

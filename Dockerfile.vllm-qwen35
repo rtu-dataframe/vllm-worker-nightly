@@ -8,3 +8,10 @@ ARG VLLM_VERSION=0.17.0
 RUN pip install --no-cache-dir \
         "vllm[flashinfer]==${VLLM_VERSION}" \
         --extra-index-url https://download.pytorch.org/whl/cu129
+
+# Debug: verify vLLM version and language_model_only support
+RUN python3 -c "import vllm; print(f'vLLM version: {vllm.__version__}'); \
+    from vllm.engine.arg_utils import AsyncEngineArgs; \
+    fields = AsyncEngineArgs.__dataclass_fields__; \
+    print(f'language_model_only field exists: {\"language_model_only\" in fields}'); \
+    print(f'Total fields: {len(fields)}')"

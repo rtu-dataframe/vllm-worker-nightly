@@ -6,8 +6,14 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write   # required to push to ghcr.io
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Free disk space
         uses: jlumbroso/free-disk-space@main
         with:
@@ -21,18 +27,27 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Login to Docker Hub
+      - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push
+      - name: Build and push (model baked into image)
         uses: docker/build-push-action@v6
         with:
-          context: "https://github.com/runpod-workers/worker-vllm.git"
-          build-args: VLLM_NIGHTLY=true
+          context: .
+          file: Dockerfile.vllm-qwen35
+          build-args: |
+            BASE_IMAGE=runpod/worker-v1-vllm:nightly
+            VLLM_VERSION=0.17.0
+            MODEL_REPO=Qwen/Qwen3.5-27B-FP8
+          secrets: |
+            hf_token=${{ secrets.HF_TOKEN }}
           push: true
           tags: |
-            simonefardella/worker-vllm-qwen35:latest
-            simonefardella/worker-vllm-qwen35:nightly-${{ github.run_id }}
+            ghcr.io/rtu-dataframe/worker-vllm-qwen35:latest
+            ghcr.io/rtu-dataframe/worker-vllm-qwen35:nightly-${{ github.run_id }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

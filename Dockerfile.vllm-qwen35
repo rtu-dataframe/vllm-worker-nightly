@@ -1,4 +1,5 @@
-ARG BASE_IMAGE
+# syntax=docker/dockerfile:1.7
+ARG BASE_IMAGE=runpod/worker-v1-vllm:nightly
 FROM ${BASE_IMAGE}
 
 # ---------------------------------------------------------------------------
@@ -17,3 +18,27 @@ RUN pip install --no-cache-dir \
 RUN apt-get update && \
     apt-get install -y --no-install-recommends cuda-nvcc-12-9 && \
     rm -rf /var/lib/apt/lists/*
+
+# ---------------------------------------------------------------------------
+# Bake model weights into the image — eliminates ~30GB network download on
+# every cold start. Loads from local NVMe instead.
+#
+# HF_TOKEN is mounted as BuildKit secret (NOT visible in image history).
+# Pass via:  docker build --secret id=hf_token,env=HF_TOKEN ...
+# Or in CI:  secrets: |  hf_token=${{ secrets.HF_TOKEN }}
+# ---------------------------------------------------------------------------
+ARG MODEL_REPO=Qwen/Qwen3.5-27B-FP8
+ENV MODEL_PATH=/models/qwen3.5-27b-fp8
+
+RUN pip install --no-cache-dir "huggingface_hub[hf_transfer]"
+ENV HF_HUB_ENABLE_HF_TRANSFER=1
+
+RUN --mount=type=secret,id=hf_token \
+    HF_TOKEN=$(cat /run/secrets/hf_token) && \
+    huggingface-cli download "${MODEL_REPO}" \
+        --local-dir "${MODEL_PATH}" \
+        --token "$HF_TOKEN" && \
+    rm -rf /root/.cache/huggingface
+
+# Default the model name to the baked path. Can still be overridden at runtime.
+ENV MODEL_NAME=${MODEL_PATH}

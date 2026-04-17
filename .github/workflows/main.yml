@@ -1,11 +1,11 @@
-name: Build vLLM Worker (Qwen3.5 — model baked, ghcr.io)
+name: Build vLLM Worker (Qwen3.5 — model baked, ghcr.io + Docker Hub)
 
 on:
   workflow_dispatch:
 
 env:
-  REGISTRY: ghcr.io
-  IMAGE: rtu-dataframe/worker-vllm-qwen35
+  GHCR_IMAGE: ghcr.io/rtu-dataframe/worker-vllm-qwen35
+  DOCKERHUB_IMAGE: simonefardella/worker-vllm-qwen35
 
 jobs:
   build:
@@ -34,15 +34,20 @@ jobs:
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY }}
+          registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
       # ----------------------------------------------------------------------
       # Step 1: build runpod-workers/worker-vllm with VLLM_NIGHTLY=true.
-      # This produces the runtime base (PyTorch + runpod handler + vLLM nightly).
-      # Pushed as an intermediate `:base-<run_id>` tag on ghcr.io so the next
-      # step can pull from it.
+      # Pushed as an intermediate `:base-<run_id>` tag on ghcr.io (internal
+      # use only — the next step pulls from here).
       # ----------------------------------------------------------------------
       - name: Build and push base worker-vllm
         uses: docker/build-push-action@v6
@@ -50,27 +55,33 @@ jobs:
           context: "https://github.com/runpod-workers/worker-vllm.git"
           build-args: VLLM_NIGHTLY=true
           push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE }}:base-${{ github.run_id }}
+          tags: ${{ env.GHCR_IMAGE }}:base-${{ github.run_id }}
 
       # ----------------------------------------------------------------------
       # Step 2: extend the base — pin vLLM 0.17.0, install nvcc, BAKE the
       # Qwen 3.5 27B FP8 weights into the image. HF_TOKEN is mounted as a
       # BuildKit secret so it never appears in image layers/history.
+      #
+      # Pushed to BOTH registries:
+      # - Docker Hub (faster pull from RunPod nodes — preferred for deploy)
+      # - ghcr.io     (backup / GitHub-native)
       # ----------------------------------------------------------------------
-      - name: Build and push final image (model baked)
+      - name: Build and push final image (model baked, dual registry)
         uses: docker/build-push-action@v6
         with:
           context: .
           file: Dockerfile.vllm-qwen35
           build-args: |
-            BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE }}:base-${{ github.run_id }}
+            BASE_IMAGE=${{ env.GHCR_IMAGE }}:base-${{ github.run_id }}
             VLLM_VERSION=0.17.0
             MODEL_REPO=Qwen/Qwen3.5-27B-FP8
           secrets: |
             hf_token=${{ secrets.HF_TOKEN }}
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE }}:latest
-            ${{ env.REGISTRY }}/${{ env.IMAGE }}:v0.17.0-${{ github.run_id }}
+            ${{ env.DOCKERHUB_IMAGE }}:latest
+            ${{ env.DOCKERHUB_IMAGE }}:v0.17.0-${{ github.run_id }}
+            ${{ env.GHCR_IMAGE }}:latest
+            ${{ env.GHCR_IMAGE }}:v0.17.0-${{ github.run_id }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

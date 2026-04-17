@@ -1,4 +1,4 @@
-name: Build vLLM Worker (Qwen3.5)
+name: Build vLLM Worker (Qwen3.5 — model baked, ghcr.io)
 
 on:
   workflow_dispatch:  # avvia manualmente da GitHub → Actions → Run workflow
